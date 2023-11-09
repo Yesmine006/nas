@@ -10,8 +10,8 @@ from copy import deepcopy
 def logdet(K):
     s, ld = np.linalg.slogdet(K)
     return  ld
-def get_sahd(trainset, network):
-        """returns the score k of a network"""
+def get_sahd(args,trainset, network):
+        """returns the score sahd of a network"""
         neuron_type = 'LIFNode'
         search_batchsize=64
         score="k"
@@ -54,6 +54,8 @@ def get_sahd(trainset, network):
                 data_iterator = iter(train_data)
                 inputs, targets = next(data_iterator)
                 inputs= inputs.cuda()
+                if args.dataset == 'DVS128Gesture':
+                  inputs=inputs.permute(1, 0, 2, 3, 4)
                 outputs = network(inputs)
                 s.append(logdet(network.K / (network.num_actfun)))
         torch.cuda.empty_cache()
@@ -101,7 +103,7 @@ def prune_func_rank(xargs, arch_parameters, trainset, search_space,network, prec
                             param.data.copy_(param_ori.data)
                         network.set_alphas(_arch_param)
 
-                        k = get_sahd(trainset, network)
+                        k = get_sahd(xargs,trainset, network)
                         k_delta.append(k)
                     k_all.append([np.mean(k_delta), (idx_ct, idx_edge, idx_op)])
                     print([np.mean(k_delta), (idx_ct, idx_edge, idx_op)])
@@ -193,7 +195,7 @@ class Supernet(nn.Module):
             self.img_size = 128
             self.first_out_channel = 128
             self.channel_ratio = 1
-            self.spatial_decay = 4 * self.second_avgpooling
+            self.spatial_decay = 8 * self.second_avgpooling
             self.classifier_inter_ch = 1024
             self.stem_stride = 2
 
@@ -203,6 +205,11 @@ class Supernet(nn.Module):
         self.stem = nn.Sequential(
             nn.Conv2d(self.in_channel, self.first_out_channel*self.channel_ratio, kernel_size=3, stride=self.stem_stride, padding=1, bias=False),
             nn.BatchNorm2d(self.first_out_channel*self.channel_ratio, affine=True),
+        )
+        self.stem_dvs = nn.Sequential(
+            nn.Conv2d(self.in_channel, self.first_out_channel*self.channel_ratio, kernel_size=3, stride=self.stem_stride, padding=1, bias=False),
+            nn.BatchNorm2d(self.first_out_channel*self.channel_ratio, affine=True),
+            nn.MaxPool2d(2,2)
         )
 
         self.cell1 = Neuronal_Cell(args, self.first_out_channel*self.channel_ratio, self.first_out_channel*self.channel_ratio, self.op_names,self.max_nodes)
@@ -218,6 +225,7 @@ class Supernet(nn.Module):
                                                        affine=True, track_running_stats=True)
                                         )
         self.resdownsample1 = nn.AvgPool2d(2,2)
+        self.resdownsample1_dvs = nn.MaxPool2d(self.second_avgpooling,self.second_avgpooling)
 
         self.cell2 = Neuronal_Cell(args, 256*self.channel_ratio, 256*self.channel_ratio, self.op_names,self.max_nodes)
 
@@ -228,6 +236,7 @@ class Supernet(nn.Module):
                                        detach_reset=True)
         )
         self.resdownsample2 = nn.AvgPool2d(self.second_avgpooling,self.second_avgpooling)
+        self.resdownsample2_dvs = nn.MaxPool2d(self.second_avgpooling,self.second_avgpooling)
 
         self.classifier = nn.Sequential(
             layer.Dropout(0.5),
@@ -272,24 +281,39 @@ class Supernet(nn.Module):
             batch_size = inputs.size(1)
         else:
             batch_size = inputs.size(0)
+            
         alphas = nn.functional.softmax(self.arch_parameters, dim=-1)
 
         for t in range(self.total_timestep):
             if self.args.dataset == 'DVS128Gesture':
                 input=inputs[t]
+                if self.use_stem:
+                  feature = self.stem_dvs(input)
+                else:
+                  feature=input
             else:
                 input=inputs
-
-            if self.use_stem:
-                feature = self.stem(input)
-            else:
-                feature = input
+                if self.use_stem:
+                  feature = self.stem(input)
+                else:
+                  feature=input
+    
             x = self.cell1(feature,alphas)
             x = self.downconv1(x)
-            x = self.resdownsample1(x)
+
+            if self.args.dataset == 'DVS128Gesture':
+              x = self.resdownsample1_dvs(x)
+            else:
+              x = self.resdownsample1(x)  
+
             x = self.cell2(x,alphas)
             x = self.last_act(x)
-            x = self.resdownsample2(x)
+            
+            if self.args.dataset == 'DVS128Gesture':
+              x = self.resdownsample2_dvs(x)
+            else:
+              x = self.resdownsample2(x)  
+
             out = x.view(batch_size, -1)
             x = self.classifier(out)
             acc_voltage = acc_voltage + self.boost(x.unsqueeze(1)).squeeze(1)
