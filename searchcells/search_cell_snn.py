@@ -23,7 +23,11 @@ class POOLING(nn.Module):
 
     def __init__(self,args, C_in, C_out):
         super(POOLING, self).__init__()
-        self.op=nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
+        self.args=args
+        if self.args.dataset == 'DVS128Gesture':
+          self.op=nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
+        else:
+          self.op=nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
 
     def forward(self, inputs):
         x = inputs
@@ -50,16 +54,18 @@ class LIFConvBN(nn.Module):
 
 
 OPS={'none'        : lambda args,C_in, C_out: ScaleLayer(),
-    'avg_pool_3x3': lambda args, C_in, C_out: POOLING(args,C_in, C_out),
+    'pool_3x3': lambda args, C_in, C_out: POOLING(args,C_in, C_out),
     'nor_conv_3x3': lambda  args, C_in, C_out: LIFConvBN(args,C_in, C_out, (3,3), (1,1)),
     'nor_conv_1x1': lambda args, C_in, C_out: LIFConvBN(args,C_in, C_out, (1,1), 0),
     'skip_connect':lambda args, C_in, C_out: Identity()}
 
 
 class Neuronal_Cell(nn.Module):
-    def __init__(self,args, C_in, C_out, op_names,max_nodes):
+    #def __init__(self,args,  in_channel, out_channel, con_mat):
+    def __init__(self,args, C_in, C_out, op_names,max_nodes):#stride, max_nodes, op_names, affine=False, track_running_stats=True):
 
         super(Neuronal_Cell, self).__init__()
+        #self.cell_architecture = nn.ModuleList([])
         self.args=args
         self.op_names = deepcopy(op_names)
         self.edges = nn.ModuleDict()
