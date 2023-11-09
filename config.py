@@ -15,6 +15,7 @@ def get_args():
     parser.add_argument('--threshold', type=float, default=1.0, help='neuron firing threshold')
     parser.add_argument('--celltype', type=str, default='backward', help='[forward, backward]')
     parser.add_argument('--second_avgpooling', type=int, default=2, help='momentum')
+    parser.add_argument('--search_space ', type=list, default=['none', 'skip_connect', 'nor_conv_1x1', 'nor_conv_3x3', 'pool_3x3'], help='[none, skip_connect, nor_conv_1x1, nor_conv_3x3, pool_3x3]')
 
     parser.add_argument('--optimizer', type=str, default='sgd', help='[sgd, adam]')
     parser.add_argument('--scheduler', type=str, default='cosine', help='[step, cosine]')
@@ -29,7 +30,7 @@ def get_args():
     parser.add_argument('--savemodel_pth', type=str,  default=None)
 
     #dvs
-    #parser.add_argument('--T', type=int, default=16, help='timsteps_neuromorphic')
+    parser.add_argument('--T', type=int, default=16, help='timsteps_neuromorphic')
 
     args = parser.parse_args()
     print(args)
