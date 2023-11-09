@@ -12,47 +12,43 @@ from utils import data_transforms
 from spikingjelly.clock_driven.functional import reset_net
 from spikingjelly.datasets.dvs128_gesture import DVS128Gesture
 import torch.nn.functional as F
-#from config 
 
 def main():
     args = config.get_args()
-    #PID = os.getpid()
-    #assert torch.cuda.is_available(), 'CUDA is not available.'
-    
     train_transform, valid_transform = data_transforms(args)
     if args.dataset == 'cifar10':
         trainset = torchvision.datasets.CIFAR10(root=os.path.join(args.data_dir, 'cifar10'), train=True,
                                                 download=True, transform=train_transform)
         train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size,
-                                                   shuffle=True, pin_memory=True, num_workers=2)
+                                                   shuffle=True, pin_memory=True, num_workers=4)
         valset = torchvision.datasets.CIFAR10(root=os.path.join(args.data_dir, 'cifar10'), train=False,
                                               download=True, transform=valid_transform)
         val_loader = torch.utils.data.DataLoader(valset, batch_size=args.batch_size,
-                                                 shuffle=False, pin_memory=True, num_workers=2)
+                                                 shuffle=False, pin_memory=True, num_workers=4)
     elif args.dataset == 'cifar100':
         trainset = torchvision.datasets.CIFAR100(root=os.path.join(args.data_dir, 'cifar100'), train=True,
                                                 download=True, transform=train_transform)
         train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size,
-                                                   shuffle=True, pin_memory=True, num_workers=2)
+                                                   shuffle=True, pin_memory=True, num_workers=4)
         valset = torchvision.datasets.CIFAR100(root=os.path.join(args.data_dir, 'cifar100'), train=False,
                                               download=True, transform=valid_transform)
         val_loader = torch.utils.data.DataLoader(valset, batch_size=args.batch_size,
-                                                 shuffle=False, pin_memory=True, num_workers=2)
+                                                 shuffle=False, pin_memory=True, num_workers=4)
     elif args.dataset == 'tinyimagenet':
-        trainset = torchvision.datasets.ImageFolder(os.path.join('/content/drive/MyDrive/tiny-imagenet-200/train'),
+        trainset = torchvision.datasets.ImageFolder(os.path.join(args.datadir,'/tiny-imagenet-200/train'),
                                         train_transform)
-        valset = torchvision.datasets.ImageFolder(os.path.join('/content/drive/MyDrive/tiny-imagenet-200/val'),
+        valset = torchvision.datasets.ImageFolder(os.path.join(args.datadir,'/tiny-imagenet-200/val'),
                                       valid_transform)
         train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True,
-                                                   num_workers=2, pin_memory=True, sampler=None)
+                                                   num_workers=4, pin_memory=True, sampler=None)
         val_loader = torch.utils.data.DataLoader(valset, batch_size=args.batch_size, shuffle=False,
-                                                 num_workers=2, pin_memory=True)
+                                                 num_workers=4, pin_memory=True)
 
     elif args.dataset == 'DVS128Gesture':
-      trainset = DVS128Gesture(root=args.data_dir, train=True, data_type='frame', frames_number=args.timestep, split_by='number')
+      trainset = DVS128Gesture(root=args.datadir, train=True, data_type='frame', frames_number=args.timestep, split_by='number')
     
     start = time.time()
-    search_space = ['none', 'skip_connect', 'nor_conv_1x1', 'nor_conv_3x3', 'avg_pool_3x3']
+    search_space = args.search_space
     network = Supernet(args,max_nodes=4, search_space=search_space)
     arch_parameters = [alpha.detach().clone() for alpha in network.get_alphas()]
     for alpha in arch_parameters:
@@ -129,15 +125,15 @@ def main():
 
 
 
-    start = time.time()
-    for epoch in range(args.epochs):
-        print('epoch number:',epoch)
-        train(args, epoch, train_loader, model, criterion, optimizer, scheduler)
-        scheduler.step()
-        #if (epoch + 1) % args['val_interval'] == 0:
-        validate(args, epoch, val_loader, model, criterion)
+    #start = time.time()
+    #for epoch in range(args.epochs):
+    #    print('epoch number:',epoch)
+    #    train(args, epoch, train_loader, model, criterion, optimizer, scheduler)
+    #    scheduler.step()
+    #    #if (epoch + 1) % args['val_interval'] == 0:
+    #    validate(args, epoch, val_loader, model, criterion)
           #save_checkpoint({'state_dict': model.state_dict(), }, epoch + 1, tag=args['exp_name'] + '_super')
-    utils.time_record(start)
+    #utils.time_record(start)
 
 
 def train(args, epoch, train_data,  model, criterion, optimizer, scheduler):
